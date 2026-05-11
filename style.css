@@ -1,0 +1,102 @@
+:root {
+    --bg-color: #121212;
+    --card-bg: #1e1e1e;
+    --text-main: #e0e0e0;
+    --text-sub: #b0b0b0;
+    --border-color: #333;
+    --primary: #7d5fff;
+    --danger: #ff4757;
+    --color-low: #2ed573;
+    --color-mid: #ffa502;
+    --color-high: #ff4757;
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+body { 
+    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+    background-color: var(--bg-color);
+    color: var(--text-main);
+    margin: 0;
+}
+
+header { padding: 10px; text-align: center; border-bottom: 1px solid var(--border-color); }
+header h1 { margin: 0; font-size: 1.1rem; color: var(--text-sub); }
+
+main { padding: 15px; max-width: 500px; margin: 0 auto; }
+section { display: none; }
+section.active { display: block; }
+
+label { display: block; margin-bottom: 8px; font-weight: bold; font-size: 0.9rem; color: var(--text-sub); }
+.field { margin-bottom: 20px; }
+
+input, select, textarea {
+    width: 100%; padding: 12px; font-size: 1rem;
+    border: 1px solid var(--border-color); border-radius: 8px;
+    background: var(--card-bg); color: var(--text-main);
+}
+
+.time-group { display: flex; gap: 10px; }
+.time-group .field { flex: 1; }
+
+.degree-group { display: flex; gap: 10px; }
+.degree-group label { 
+    flex: 1; text-align: center; background: var(--card-bg); padding: 12px 0;
+    border-radius: 10px; border: 2px solid var(--border-color); cursor: pointer;
+}
+#d1:checked + .label-low { background: var(--color-low); border-color: var(--color-low); color: #fff; }
+#d2:checked + .label-mid { background: var(--color-mid); border-color: var(--color-mid); color: #fff; }
+#d3:checked + .label-high { background: var(--color-high); border-color: var(--color-high); color: #fff; }
+input[type="radio"] { display: none; }
+
+.submit-btn { width: 100%; background: var(--primary); color: white; border: none; padding: 16px; border-radius: 12px; font-weight: bold; margin-bottom: 10px; }
+.delete-full-btn { width: 100%; background: transparent; color: var(--danger); border: 2px solid var(--danger); padding: 14px; border-radius: 12px; margin-bottom: 10px; }
+.cancel-btn { width: 100%; background: #444; color: white; border: none; padding: 10px; border-radius: 12px; }
+
+/* 一覧アイテムのデザイン */
+.log-item { 
+    background: var(--card-bg); padding: 10px 12px; border-radius: 8px; margin-bottom: 8px; 
+    border-left: 5px solid #ccc;
+}
+.log-line-1 { display: flex; justify-content: space-between; font-size: 0.95rem; margin-bottom: 3px; }
+.log-line-2 { display: flex; gap: 15px; font-size: 0.85rem; color: var(--text-sub); }
+.log-line-3 { font-size: 0.8rem; color: #888; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 3px; }
+
+/* カレンダー下部のミニ統計 */
+.mini-stats {
+    display: flex; justify-content: space-around; background: var(--card-bg);
+    margin-top: 10px; padding: 12px; border-radius: 12px; border: 1px solid var(--border-color);
+}
+.mini-stats div { text-align: center; font-size: 0.85rem; color: var(--text-sub); }
+.mini-stats span { display: block; font-size: 1.2rem; font-weight: bold; color: var(--primary); }
+
+.tab-bar {
+    position: fixed; bottom: 0; left: 0; width: 100%; height: 70px;
+    background: var(--card-bg); display: flex; border-top: 1px solid var(--border-color);
+    padding-bottom: env(safe-area-inset-bottom); z-index: 1000;
+}
+.tab-bar button { flex: 1; border: none; background: none; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #666; }
+.tab-bar button.active { color: var(--primary); }
+.tab-bar span { font-size: 10px; margin-top: 4px; }
+
+.spacer { height: 100px; }
+
+.stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.stat-item { background: var(--card-bg); padding: 15px; border-radius: 12px; text-align: center; }
+.stat-item.full { grid-column: span 2; }
+.stat-label { font-size: 0.8rem; color: var(--text-sub); }
+.stat-value { display: block; font-size: 1.5rem; font-weight: bold; margin-top: 5px; }
+
+/* カレンダー外枠と「日」の非表示 */
+#calendarDisplay {
+    background: #2a2a2a; border: 2px solid #808080; /* 外枠をグレーに変更 */
+border-radius: 12px; overflow: hidden; padding: 5px;
+}
+.fc-theme-standard td, .fc-theme-standard th { border: 1px solid #444 !important; }
+
+/* 曜日ヘッダーの背景を少し変えて区別する */
+.fc-col-header-cell {
+    background-color: #333333 !important;
+    color: #ffffff !important;
+}
+
+.fc-daygrid-day-number { color: #e0e0e0; padding: 5px !important; text-decoration: none !important; }

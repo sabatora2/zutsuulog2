@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no">
+    <title>😿頭痛ログ</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.css">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+  import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, query, orderBy, where } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+  import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyBwFolmHuYQQwQAZUljJ-8MWZFRt5KkqKU",
+    authDomain: "zutsuulog.firebaseapp.com",
+    projectId: "zutsuulog",
+    storageBucket: "zutsuulog.firebasestorage.app",
+    messagingSenderId: "905598279993",
+    appId: "1:905598279993:web:def3bd576c25432b9e08e8",
+    measurementId: "G-GPQ8BG8PRF"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+  const auth = getAuth(app);
+
+  window.db = db;
+  window.auth = auth;
+  window.authFunc = { signInWithEmailAndPassword, signOut, onAuthStateChanged };
+  window.fs = { collection, addDoc, getDocs, doc, updateDoc, deleteDoc, query, orderBy, where };
+</script>
+</head>
+<body>
+    <div id="authOverlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:#121212; z-index:2000; padding:20px; box-sizing:border-box;">
+        <div style="max-width: 400px; margin: 40px auto;">
+            <h2 style="text-align:center; margin-bottom:30px; color:#e0e0e0;">ログイン</h2>
+            <div class="field">
+                <label>メールアドレス</label>
+                <input type="email" id="loginEmail" placeholder="email@example.com">
+            </div>
+            <div class="field">
+                <label>パスワード</label>
+                <input type="password" id="loginPw" placeholder="パスワード">
+            </div>
+            <button onclick="handleLogin()" class="submit-btn" style="margin-top:20px;">ログイン</button>
+            <p id="authError" style="color:#ff4757; font-size:0.8rem; margin-top:15px; text-align:center;"></p>
+        </div>
+    </div>
+
+    <header>
+        <h1 id="pageTitle">記録</h1>
+    </header>
+
+    <main id="app" style="display:none;">
+        <section id="input" class="active">
+            <form id="recordForm">
+                <input type="hidden" id="editId"> 
+                <div class="field">
+                    <label>日付</label>
+                    <input type="text" id="date" readonly>
+                </div>
+                
+                <div class="time-group">
+                    <div class="field">
+                        <label>開始</label>
+                        <input type="text" id="startTime" class="time-picker" placeholder="--:--">
+                    </div>
+                    <div class="field">
+                        <label>終了</label>
+                        <input type="text" id="endTime" class="time-picker" placeholder="--:--">
+                    </div>
+                </div>
+
+                <div class="field">
+                    <label>頭痛の度合い</label>
+                    <div class="degree-group">
+                        <input type="radio" name="degree" value="1" id="d1"><label for="d1" class="label-low">軽</label>
+                        <input type="radio" name="degree" value="2" id="d2" checked><label for="d2" class="label-mid">中</label>
+                        <input type="radio" name="degree" value="3" id="d3"><label for="d3" class="label-high">重</label>
+                    </div>
+                </div>
+
+                <div class="field">
+                    <label>薬の服用</label>
+                    <select id="medication" onchange="toggleMedTime()">
+                        <option value="true" selected>飲んだ</option>
+                        <option value="false">飲んでいない</option>
+                    </select>
+                </div>
+                
+                <div id="medTimeContainer" class="field">
+                    <label>服用時刻</label>
+                    <input type="text" id="medTime" class="time-picker" placeholder="--:--">
+                </div>
+
+                <div class="field">
+                    <label>メモ</label>
+                    <textarea id="memo" rows="2" placeholder="メモ"></textarea>
+                </div>
+
+                <div id="buttonGroup">
+                    <button type="submit" id="saveBtn" class="submit-btn">保存してカレンダーへ</button>
+                    <button type="button" id="deleteBtn" class="delete-full-btn" style="display:none;" onclick="handleDelete()">この記録を削除する</button>
+                    <button type="button" id="cancelBtn" class="cancel-btn" style="display:none;" onclick="resetForm()">キャンセル（新規入力へ）</button>
+                    <button type="button" onclick="handleLogout()" style="width:100%; background:none; border:none; color:#888; font-size:0.9rem; margin-top:20px; text-decoration:underline;">ログアウトする</button>
+                </div>
+                <div class="spacer"></div>
+            </form>
+        </section>
+
+        <section id="calendar">
+            <div id="calendarDisplay"></div>
+            <div id="calendarStats" class="mini-stats">
+                <div>今月の頭痛<span id="calCountHeadache">0</span></div>
+                <div>薬の服用<span id="calCountMed">0</span></div>
+            </div>
+            <div class="spacer"></div>
+        </section>
+
+        <section id="list">
+            <div id="logList"></div>
+            <div class="spacer"></div>
+        </section>
+
+        <section id="report">
+            <div class="stats-grid">
+                <div class="stat-item"><span class="stat-label">今月の頭痛</span><span class="stat-value"><span id="countHeadache">0</span>回</span></div>
+                <div class="stat-item"><span class="stat-label">今月の服用</span><span class="stat-value"><span id="countMed">0</span>回</span></div>
+                <div class="stat-item"><span class="stat-label">今年の頭痛(1月〜)</span><span class="stat-value"><span id="yearCountHeadache">0</span>回</span></div>
+                <div class="stat-item"><span class="stat-label">今年の服用(1月〜)</span><span class="stat-value"><span id="yearCountMed">0</span>回</span></div>
+                <div class="stat-item full"><span class="stat-label">最後の頭痛から</span><span class="stat-value"><span id="daysSince">0</span>日経過</span></div>
+            </div>
+        </section>
+    </main>
+
+    <nav class="tab-bar" style="display:none;">
+        <button onclick="showSection('input', '記録')" id="btn-input" class="active"><span class="material-icons">edit</span><span>入力</span></button>
+        <button onclick="showSection('calendar', 'カレンダー')" id="btn-calendar"><span class="material-icons">calendar_month</span><span>日誌</span></button>
+        <button onclick="showSection('list', '履歴')" id="btn-list"><span class="material-icons">list</span><span>一覧</span></button>
+        <button onclick="showSection('report', '統計')" id="btn-report"><span class="material-icons">bar_chart</span><span>分析</span></button>
+    </nav>
+
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/ja.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
