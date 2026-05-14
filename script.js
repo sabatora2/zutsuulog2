@@ -1,9 +1,13 @@
 let currentUser = null;
 let calendar;
 
-// --- 1. ログイン状態の監視と初期化 ---
+// Firebase alias for cleaner code
+const f = () => window.firebaseApp;
+
+// --- 1. 初期化処理 ---
 window.addEventListener('load', () => {
-    window.authFunc.onAuthStateChanged(window.auth, (user) => {
+    // ログイン状態監視
+    f().authFunc.onAuthStateChanged(f().auth, (user) => {
         const appElement = document.getElementById('app');
         const navElement = document.querySelector('.tab-bar');
         const authOverlay = document.getElementById('authOverlay');
@@ -17,36 +21,37 @@ window.addEventListener('load', () => {
             if (!calendar) {
                 initCalendar();
             } else {
-                refreshEvents();
+                refreshData();
             }
         } else {
             currentUser = null;
-            authOverlay.style.display = 'block';
+            authOverlay.style.display = 'flex';
             appElement.style.display = 'none';
             navElement.style.display = 'none';
         }
     });
 
-    const pickerConfig = {
+    // フォームパーツ初期化
+    flatpickr("#date", { locale: "ja", defaultDate: "today", dateFormat: "Y-m-d" });
+    flatpickr(".time-picker", {
         enableTime: true,
         noCalendar: true,
         dateFormat: "H:i",
         time_24hr: true,
-        minuteIncrement: 15,
-        disableMobile: false
-    };
-    flatpickr("#date", { locale: "ja", defaultDate: "today", dateFormat: "Y-m-d" });
-    flatpickr(".time-picker", pickerConfig);
+        minuteIncrement: 5,
+        disableMobile: "true" // スマホでもカスタムUIを使用
+    });
 });
 
-// --- 2. 認証処理 ---
+// --- 2. 認証 ---
 async function handleLogin() {
     const email = document.getElementById('loginEmail').value;
     const pw = document.getElementById('loginPw').value;
     const errorEl = document.getElementById('authError');
-    errorEl.innerText = "";
+    if(!email || !pw) return errorEl.innerText = "入力してください";
+    
     try {
-        await window.authFunc.signInWithEmailAndPassword(window.auth, email, pw);
+        await f().authFunc.signInWithEmailAndPassword(f().auth, email, pw);
     } catch (err) {
         errorEl.innerText = "ログインに失敗しました。";
     }
@@ -54,67 +59,77 @@ async function handleLogin() {
 
 async function handleLogout() {
     if (confirm('ログアウトしますか？')) {
-        await window.authFunc.signOut(window.auth);
+        await f().authFunc.signOut(f().auth);
         location.reload();
     }
 }
 
-// --- 3. カレンダー関連 ---
-// --- 1. カレンダー初期化の修正 ---
+// --- 3. カレンダー制御 ---
 function initCalendar() {
     const calendarEl = document.getElementById('calendarDisplay');
     calendar = new FullCalendar.Calendar(calendarEl, {
         initialView: 'dayGridMonth',
         locale: 'ja',
-        dayCellContent: function(e) {
-            return e.dayNumberText.replace('日', '');
-        },
+        dayCellContent: (e) => e.dayNumberText.replace('日', ''),
         height: 'auto',
         headerToolbar: { left: 'prev', center: 'title', right: 'next' },
-        // 月が切り替わった時に実行される処理を追加
-        datesSet: function(info) {
-            updateMonthlyStats(info.start, info.end);
-        },
-        eventClick: (info) => {
-            loadLogToForm(info.event.id);
-        }
+        datesSet: () => updateMonthlyStats(), // 月変更時に統計更新
+        eventClick: (info) => loadLogToForm(info.event.id)
     });
     calendar.render();
-    refreshEvents();
+    refreshData();
 }
 
-async function refreshEvents() {
-    if (!currentUser || !window.db) return;
-    const q = window.fs.query(
-        window.fs.collection(window.db, "headacheLogs"),
-        window.fs.where("userId", "==", currentUser.uid),
-        window.fs.orderBy("timestamp", "desc")
+// 全データの再取得と全画面反映
+async function refreshData() {
+    if (!currentUser || !f().db) return;
+    const q = f().fs.query(
+        f().fs.collection(f().db, "headacheLogs"),
+        f().fs.where("userId", "==", currentUser.uid),
+        f().fs.orderBy("timestamp", "desc")
     );
     
     try {
-        const querySnapshot = await window.fs.getDocs(q);
+        const querySnapshot = await f().fs.getDocs(q);
         const events = [];
+        const logs = [];
+        
         querySnapshot.forEach((doc) => {
-            const log = doc.data();
-            let eventColor;
-            if (!log.medication) {
-                eventColor = '#3498db'; // 薬なし：青
+            const log = { id: doc.id, ...doc.data() };
+            logs.push(log);
+            
+            // 「病院」判定
+            const isHospital = log.memo && log.memo.includes("病院");
+
+            if (isHospital) {
+                // 病院の場合は「💊」のみ、色はグレー等で控えめに
+                events.push({
+                    id: log.id,
+                    title: '💊',
+                    start: log.date,
+                    color: '#95a5a6' 
+                });
             } else {
-                if (log.degree == '3') eventColor = '#ff4757';      // 重：赤
-                else if (log.degree == '2') eventColor = '#ffa502'; // 中：オレンジ
-                else eventColor = '#2ed573';                       // 軽：緑
+                // 通常の頭痛記録
+                let color = '#3498db'; 
+                if (log.medication) {
+                    color = log.degree == '3' ? '#ff4757' : (log.degree == '2' ? '#ffa502' : '#2ed573');
+                }
+                events.push({
+                    id: log.id,
+                    title: log.degree == '3' ? '重' : (log.degree == '2' ? '中' : '軽'),
+                    start: log.date,
+                    color: color
+                });
             }
-            events.push({
-                id: doc.id,
-                title: log.degree == '3' ? '重' : (log.degree == '2' ? '中' : '軽'),
-                start: log.date,
-                color: eventColor
-            });
         });
+        
         calendar.setOption('events', events);
-        updateReport();
+        updateReportUI(logs);
+        updateListUI(logs);
+        updateMonthlyStats(); 
     } catch (err) {
-        console.error("データ取得エラー:", err);
+        console.error("Data Fetch Error:", err);
     }
 }
 
@@ -124,25 +139,28 @@ document.getElementById('recordForm').onsubmit = async (e) => {
     if (!currentUser) return;
 
     const editId = document.getElementById('editId').value;
+    const medicationVal = document.getElementById('medication').value === 'true';
+    
     const data = {
         userId: currentUser.uid,
         date: document.getElementById('date').value,
         start: document.getElementById('startTime').value,
         end: document.getElementById('endTime').value,
         degree: document.querySelector('input[name="degree"]:checked').value,
-        medication: document.getElementById('medication').value === 'true',
-        medTime: document.getElementById('medTime').value,
+        medication: medicationVal,
+        medTime: medicationVal ? document.getElementById('medTime').value : "",
         memo: document.getElementById('memo').value,
         timestamp: new Date(document.getElementById('date').value).getTime()
     };
 
     try {
         if (editId) {
-            await window.fs.updateDoc(window.fs.doc(window.db, "headacheLogs", editId), data);
+            await f().fs.updateDoc(f().fs.doc(f().db, "headacheLogs", editId), data);
         } else {
-            await window.fs.addDoc(window.fs.collection(window.db, "headacheLogs"), data);
+            await f().fs.addDoc(f().fs.collection(f().db, "headacheLogs"), data);
         }
         resetForm();
+        refreshData();
         showSection('calendar', 'カレンダー');
     } catch (err) {
         alert("保存に失敗しました。");
@@ -151,14 +169,12 @@ document.getElementById('recordForm').onsubmit = async (e) => {
 
 async function loadLogToForm(id) {
     try {
-        const q = window.fs.query(
-            window.fs.collection(window.db, "headacheLogs"),
-            window.fs.where("userId", "==", currentUser.uid)
-        );
-        const querySnapshot = await window.fs.getDocs(q);
-        let log;
-        querySnapshot.forEach(d => { if(d.id === id) log = d.data(); });
+        // ID指定で直接取得（効率化）
+        const docRef = f().fs.doc(f().db, "headacheLogs", id);
+        const docSnap = await f().fs.getDocs(f().fs.query(f().fs.collection(f().db, "headacheLogs"), f().fs.where("userId", "==", currentUser.uid)));
         
+        let log = null;
+        docSnap.forEach(d => { if(d.id === id) log = d.data(); });
         if (!log) return;
 
         document.getElementById('editId').value = id;
@@ -166,16 +182,16 @@ async function loadLogToForm(id) {
         document.getElementById('startTime').value = log.start || "";
         document.getElementById('endTime').value = log.end || "";
         
-        if(document.getElementById('date')._flatpickr) document.getElementById('date')._flatpickr.setDate(log.date);
-        if(document.getElementById('startTime')._flatpickr) document.getElementById('startTime')._flatpickr.setDate(log.start);
-        if(document.getElementById('endTime')._flatpickr) document.getElementById('endTime')._flatpickr.setDate(log.end);
+        // Flatpickrに値をセット
+        document.getElementById('date')._flatpickr.setDate(log.date);
+        document.getElementById('startTime')._flatpickr.setDate(log.start);
+        document.getElementById('endTime')._flatpickr.setDate(log.end);
 
-        const degreeInput = document.querySelector(`input[name="degree"][value="${log.degree}"]`);
-        if (degreeInput) degreeInput.checked = true;
-
+        document.querySelector(`input[name="degree"][value="${log.degree}"]`).checked = true;
         document.getElementById('medication').value = log.medication.toString();
         document.getElementById('medTime').value = log.medTime || "";
-        if(document.getElementById('medTime')._flatpickr) document.getElementById('medTime')._flatpickr.setDate(log.medTime || "");
+        if(log.medTime) document.getElementById('medTime')._flatpickr.setDate(log.medTime);
+        
         document.getElementById('memo').value = log.memo || "";
 
         toggleMedTime();
@@ -184,35 +200,21 @@ async function loadLogToForm(id) {
         document.getElementById('cancelBtn').style.display = "block";
         
         showSection('input', '記録の修正');
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-    } catch (err) {
-        console.error("Load Error:", err);
-    }
+    } catch (err) { console.error(err); }
 }
 
 async function handleDelete() {
     const id = document.getElementById('editId').value;
-    if (!id || !confirm('削除しますか？')) return;
+    if (!id || !confirm('この記録を削除しますか？')) return;
     try {
-        await window.fs.deleteDoc(window.fs.doc(window.db, "headacheLogs", id));
+        await f().fs.deleteDoc(f().fs.doc(f().db, "headacheLogs", id));
         resetForm();
+        refreshData();
         showSection('calendar', 'カレンダー');
-    } catch (err) {
-        alert("削除に失敗しました。");
-    }
+    } catch (err) { alert("削除失敗"); }
 }
 
-// --- 5. UI制御 ---
-function resetForm() {
-    document.getElementById('recordForm').reset();
-    document.getElementById('editId').value = "";
-    document.getElementById('saveBtn').innerText = "保存してカレンダーへ";
-    document.getElementById('deleteBtn').style.display = "none";
-    document.getElementById('cancelBtn').style.display = "none";
-    document.getElementById('medication').value = "true";
-    toggleMedTime();
-}
-
+// --- 5. UI更新系 ---
 function showSection(id, title) {
     document.querySelectorAll('section').forEach(s => s.classList.remove('active'));
     document.querySelectorAll('.tab-bar button').forEach(b => b.classList.remove('active'));
@@ -220,153 +222,119 @@ function showSection(id, title) {
     document.getElementById('pageTitle').innerText = title;
     document.getElementById('btn-' + id).classList.add('active');
 
-    if(id === 'calendar' && calendar) {
-        calendar.render();
+    if(id === 'calendar') {
         calendar.updateSize();
-        refreshEvents();
     }
-    if(id === 'report') updateReport();
-    if(id === 'list') updateList();
+    window.scrollTo(0,0);
 }
 
-async function updateList() {
-    if (!currentUser) return;
-    const q = window.fs.query(
-        window.fs.collection(window.db, "headacheLogs"), 
-        window.fs.where("userId", "==", currentUser.uid),
-        window.fs.orderBy("timestamp", "desc")
-    );
+// 一覧表示の更新
+function updateListUI(logs) {
+    const container = document.getElementById('logList');
+    if (logs.length === 0) {
+        container.innerHTML = '<p class="empty-msg">記録がありません</p>';
+        return;
+    }
     
-    try {
-        const querySnapshot = await window.fs.getDocs(q);
-        const container = document.getElementById('logList');
-        let html = "";
+    container.innerHTML = logs.map(log => {
+        const isHospital = log.memo && log.memo.includes("病院");
         
-        querySnapshot.forEach((doc) => {
-            const log = doc.data();
-            let borderColor;
-            if (!log.medication) {
-                borderColor = '#3498db';
-            } else {
-                if (log.degree == '3') borderColor = '#ff4757';
-                else if (log.degree == '2') borderColor = '#ffa502';
-                else borderColor = '#2ed573';
-            }
-
-            const medInfo = log.medication ? `服用: ${log.medTime || '--:--'}` : 'なし';
-            
-            html += `
-                <div class="log-item" onclick="loadLogToForm('${doc.id}')" style="border-left-color: ${borderColor}">
+        if (isHospital) {
+            // 病院の場合のシンプルな表示
+            return `
+                <div class="log-item" onclick="loadLogToForm('${log.id}')" style="border-left-color: #95a5a6">
                     <div class="log-line-1">
                         <strong>${log.date}</strong>
-                        <span>${log.start} 〜 ${log.end || '--:--'}</span>
-                    </div>
-                    <div class="log-line-2">
-                        <span>度合い: ${'★'.repeat(log.degree)}</span>
-                        <span>薬: ${medInfo}</span>
-                    </div>
-                    <div class="log-line-3">
-                        ${log.memo || '(メモなし)'}
+                        <span style="font-weight: bold; color: #fff;">病院 💊</span>
                     </div>
                 </div>
             `;
-        });
-        container.innerHTML = html || '<p style="text-align:center; color:#999;">記録がありません</p>';
-    } catch (err) {
-        console.error("List Update Error:", err);
-    }
-}
-
-async function updateReport() {
-    if (!currentUser) return;
-    const q = window.fs.query(
-        window.fs.collection(window.db, "headacheLogs"),
-        window.fs.where("userId", "==", currentUser.uid),
-        window.fs.orderBy("timestamp", "desc")
-    );
-    
-    try {
-        const querySnapshot = await window.fs.getDocs(q);
-        const logs = [];
-        querySnapshot.forEach(doc => logs.push(doc.data()));
-
-        const now = new Date();
-        const currentYear = now.getFullYear();
-        const currentMonthStr = now.toISOString().substring(0, 7);
-        const yearStartStr = `${currentYear}-01-01`;
-
-        const thisMonthLogs = logs.filter(l => l.date.startsWith(currentMonthStr));
-        const monthHeadache = thisMonthLogs.length;
-        const monthMed = thisMonthLogs.filter(l => l.medication).length;
-
-        const thisYearLogs = logs.filter(l => l.date >= yearStartStr);
-        const yearHeadache = thisYearLogs.length;
-        const yearMed = thisYearLogs.filter(l => l.medication).length;
-
-        let daysSince = "0";
-        if (logs.length > 0) {
-            const lastDate = new Date(Math.max(...logs.map(l => l.timestamp)));
-            daysSince = Math.floor(Math.abs(now - lastDate) / (1000 * 60 * 60 * 24));
+        } else {
+            // 通常の表示
+            let color = !log.medication ? '#3498db' : (log.degree == '3' ? '#ff4757' : (log.degree == '2' ? '#ffa502' : '#2ed573'));
+            return `
+                <div class="log-item" onclick="loadLogToForm('${log.id}')" style="border-left-color: ${color}">
+                    <div class="log-line-1">
+                        <strong>${log.date}</strong>
+                        <span>${log.start}〜${log.end || '--:--'}</span>
+                    </div>
+                    <div class="log-line-2">
+                        <span>度合い: ${'★'.repeat(log.degree)}</span>
+                        <span>薬: ${log.medication ? (log.medTime || '服用') : 'なし'}</span>
+                    </div>
+                    ${log.memo ? `<div class="log-line-3">${log.memo}</div>` : ''}
+                </div>
+            `;
         }
+    }).join('');
+}
 
-        document.getElementById('countHeadache').innerText = monthHeadache;
-        document.getElementById('countMed').innerText = monthMed;
-        document.getElementById('yearCountHeadache').innerText = yearHeadache;
-        document.getElementById('yearCountMed').innerText = yearMed;
-        document.getElementById('daysSince').innerText = daysSince;
+// 統計の計算から除外
+function updateReportUI(logs) {
+    const now = new Date();
+    const curMonth = now.toISOString().substring(0, 7);
+    const curYear = now.getFullYear().toString();
 
-        const calH = document.getElementById('calCountHeadache');
-        const calM = document.getElementById('calCountMed');
-        if (calH) calH.innerText = monthHeadache + "回";
-        if (calM) calM.innerText = monthMed + "回";
-    } catch (err) {
-        console.error("Report Update Error:", err);
+    // 「病院」を含まないログだけで統計を出す
+    const validLogs = logs.filter(l => !(l.memo && l.memo.includes("病院")));
+
+    const mLogs = validLogs.filter(l => l.date.startsWith(curMonth));
+    const yLogs = validLogs.filter(l => l.date.startsWith(curYear));
+
+    document.getElementById('countHeadache').innerText = mLogs.length;
+    document.getElementById('countMed').innerText = mLogs.filter(l => l.medication).length;
+    document.getElementById('yearCountHeadache').innerText = yLogs.length;
+    document.getElementById('yearCountMed').innerText = yLogs.filter(l => l.medication).length;
+
+    if (validLogs.length > 0) {
+        const lastDate = new Date(validLogs[0].date);
+        const diff = Math.floor((now - lastDate) / (1000 * 60 * 60 * 24));
+        document.getElementById('daysSince').innerText = Math.max(0, diff);
+    } else {
+        document.getElementById('daysSince').innerText = "-";
     }
 }
 
-// --- 2. 表示されている月に合わせて統計を更新する関数を追加 ---
-async function updateMonthlyStats(viewStart, viewEnd) {
-    if (!currentUser || !window.db) return;
+function updateMonthlyStats() {
+    if (!calendar) return;
+    const currentViewDate = calendar.getDate();
+    const targetMonth = currentViewDate.getMonth();
+    const targetYear = currentViewDate.getFullYear();
 
-    const q = window.fs.query(
-        window.fs.collection(window.db, "headacheLogs"),
-        window.fs.where("userId", "==", currentUser.uid)
-    );
+    const events = calendar.getEvents();
+    let monthH = 0;
+    let monthM = 0;
 
-    try {
-        const querySnapshot = await window.fs.getDocs(q);
-        let monthHeadache = 0;
-        let monthMed = 0;
-
-        querySnapshot.forEach((doc) => {
-            const log = doc.data();
-            const logDate = new Date(log.date);
-
-            // 表示されているカレンダーの範囲内（前月末や翌月頭の遊び分を除く「今月」のみ）を判定
-            // FullCalendarのinfo.start/endは表示領域全域を指すため、
-            // カレンダーの中央付近の日付から「現在の月」を特定してフィルタリングします。
-            const currentMonth = calendar.getDate().getMonth();
-            const currentYear = calendar.getDate().getFullYear();
-
-            if (logDate.getMonth() === currentMonth && logDate.getFullYear() === currentYear) {
-                monthHeadache++;
-                if (log.medication) {
-                    monthMed++;
+    events.forEach(ev => {
+        const d = ev.start;
+        // 表示月と一致するか判定
+        if (d.getMonth() === targetMonth && d.getFullYear() === targetYear) {
+            // タイトルが「💊」（病院）でない場合のみ、頭痛回数としてカウント
+            if (ev.title !== '💊') {
+                monthH++;
+                // 薬を飲んだ記録（青色以外）であれば服用回数としてカウント
+                if (ev.backgroundColor !== '#3498db') {
+                    monthM++;
                 }
             }
-        });
+        }
+    });
 
-        // カレンダー下部の表示を更新
-        const calH = document.getElementById('calCountHeadache');
-        const calM = document.getElementById('calCountMed');
-        if (calH) calH.innerText = monthHeadache + "回";
-        if (calM) calM.innerText = monthMed + "回";
-
-    } catch (err) {
-        console.error("月間統計の更新エラー:", err);
-    }
+    // 表示の更新
+    const calH = document.getElementById('calCountHeadache');
+    const calM = document.getElementById('calCountMed');
+    if (calH) calH.innerText = monthH + "回";
+    if (calM) calM.innerText = monthM + "回";
 }
-
+function resetForm() {
+    document.getElementById('recordForm').reset();
+    document.getElementById('editId').value = "";
+    document.getElementById('saveBtn').innerText = "保存してカレンダーへ";
+    document.getElementById('deleteBtn').style.display = "none";
+    document.getElementById('cancelBtn').style.display = "none";
+    document.getElementById('date')._flatpickr.setDate(new Date());
+    toggleMedTime();
+}
 
 function toggleMedTime() {
     const isMed = document.getElementById('medication').value === 'true';

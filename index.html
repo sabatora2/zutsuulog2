@@ -2,42 +2,40 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>😿頭痛ログ</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.css">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 
-<script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-  import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, query, orderBy, where } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-  import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, query, orderBy, where } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
-  const firebaseConfig = {
-    apiKey: "AIzaSyBwFolmHuYQQwQAZUljJ-8MWZFRt5KkqKU",
-    authDomain: "zutsuulog.firebaseapp.com",
-    projectId: "zutsuulog",
-    storageBucket: "zutsuulog.firebasestorage.app",
-    messagingSenderId: "905598279993",
-    appId: "1:905598279993:web:def3bd576c25432b9e08e8",
-    measurementId: "G-GPQ8BG8PRF"
-  };
+        const firebaseConfig = {
+            apiKey: "AIzaSyBwFolmHuYQQwQAZUljJ-8MWZFRt5KkqKU",
+            authDomain: "zutsuulog.firebaseapp.com",
+            projectId: "zutsuulog",
+            storageBucket: "zutsuulog.firebasestorage.app",
+            messagingSenderId: "905598279993",
+            appId: "1:905598279993:web:def3bd576c25432b9e08e8",
+            measurementId: "G-GPQ8BG8PRF"
+        };
 
-  const app = initializeApp(firebaseConfig);
-  const db = getFirestore(app);
-  const auth = getAuth(app);
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
 
-  window.db = db;
-  window.auth = auth;
-  window.authFunc = { signInWithEmailAndPassword, signOut, onAuthStateChanged };
-  window.fs = { collection, addDoc, getDocs, doc, updateDoc, deleteDoc, query, orderBy, where };
-</script>
+        // Global access for script.js
+        window.firebaseApp = { db, auth, authFunc: { signInWithEmailAndPassword, signOut, onAuthStateChanged }, fs: { collection, addDoc, getDocs, doc, updateDoc, deleteDoc, query, orderBy, where } };
+    </script>
 </head>
 <body>
-    <div id="authOverlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:#121212; z-index:2000; padding:20px; box-sizing:border-box;">
-        <div style="max-width: 400px; margin: 40px auto;">
-            <h2 style="text-align:center; margin-bottom:30px; color:#e0e0e0;">ログイン</h2>
+    <div id="authOverlay" class="overlay">
+        <div class="auth-container">
+            <h2>ログイン</h2>
             <div class="field">
                 <label>メールアドレス</label>
                 <input type="email" id="loginEmail" placeholder="email@example.com">
@@ -46,8 +44,8 @@
                 <label>パスワード</label>
                 <input type="password" id="loginPw" placeholder="パスワード">
             </div>
-            <button onclick="handleLogin()" class="submit-btn" style="margin-top:20px;">ログイン</button>
-            <p id="authError" style="color:#ff4757; font-size:0.8rem; margin-top:15px; text-align:center;"></p>
+            <button onclick="handleLogin()" class="submit-btn">ログイン</button>
+            <p id="authError" class="error-msg"></p>
         </div>
     </div>
 
@@ -76,18 +74,18 @@
                 </div>
 
                 <div class="field">
-                    <label>頭痛の度合い</label>
-                    <div class="degree-group">
-                        <input type="radio" name="degree" value="1" id="d1"><label for="d1" class="label-low">軽</label>
-                        <input type="radio" name="degree" value="2" id="d2" checked><label for="d2" class="label-mid">中</label>
-                        <input type="radio" name="degree" value="3" id="d3"><label for="d3" class="label-high">重</label>
-                    </div>
-                </div>
+    <label>頭痛の度合い</label>
+    <div class="degree-group">
+        <input type="radio" name="degree" value="1" id="d1"><label for="d1" class="label-low">軽</label>
+        <input type="radio" name="degree" value="2" id="d2" checked><label for="d2" class="label-mid">中</label>
+        <input type="radio" name="degree" value="3" id="d3"><label for="d3" class="label-high">重</label>
+    </div>
+</div>
 
                 <div class="field">
                     <label>薬の服用</label>
                     <select id="medication" onchange="toggleMedTime()">
-                        <option value="true" selected>飲んだ</option>
+                        <option value="true">飲んだ</option>
                         <option value="false">飲んでいない</option>
                     </select>
                 </div>
@@ -106,7 +104,7 @@
                     <button type="submit" id="saveBtn" class="submit-btn">保存してカレンダーへ</button>
                     <button type="button" id="deleteBtn" class="delete-full-btn" style="display:none;" onclick="handleDelete()">この記録を削除する</button>
                     <button type="button" id="cancelBtn" class="cancel-btn" style="display:none;" onclick="resetForm()">キャンセル（新規入力へ）</button>
-                    <button type="button" onclick="handleLogout()" style="width:100%; background:none; border:none; color:#888; font-size:0.9rem; margin-top:20px; text-decoration:underline;">ログアウトする</button>
+                    <button type="button" onclick="handleLogout()" class="logout-link">ログアウトする</button>
                 </div>
                 <div class="spacer"></div>
             </form>
@@ -114,9 +112,9 @@
 
         <section id="calendar">
             <div id="calendarDisplay"></div>
-            <div id="calendarStats" class="mini-stats">
-                <div>今月の頭痛<span id="calCountHeadache">0</span></div>
-                <div>薬の服用<span id="calCountMed">0</span></div>
+            <div class="mini-stats">
+                <div>表示月の頭痛<span id="calCountHeadache">0回</span></div>
+                <div>薬の服用<span id="calCountMed">0回</span></div>
             </div>
             <div class="spacer"></div>
         </section>
@@ -130,8 +128,8 @@
             <div class="stats-grid">
                 <div class="stat-item"><span class="stat-label">今月の頭痛</span><span class="stat-value"><span id="countHeadache">0</span>回</span></div>
                 <div class="stat-item"><span class="stat-label">今月の服用</span><span class="stat-value"><span id="countMed">0</span>回</span></div>
-                <div class="stat-item"><span class="stat-label">今年の頭痛(1月〜)</span><span class="stat-value"><span id="yearCountHeadache">0</span>回</span></div>
-                <div class="stat-item"><span class="stat-label">今年の服用(1月〜)</span><span class="stat-value"><span id="yearCountMed">0</span>回</span></div>
+                <div class="stat-item"><span class="stat-label">今年の頭痛</span><span class="stat-value"><span id="yearCountHeadache">0</span>回</span></div>
+                <div class="stat-item"><span class="stat-label">今年の服用</span><span class="stat-value"><span id="yearCountMed">0</span>回</span></div>
                 <div class="stat-item full"><span class="stat-label">最後の頭痛から</span><span class="stat-value"><span id="daysSince">0</span>日経過</span></div>
             </div>
         </section>
