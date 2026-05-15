@@ -90,6 +90,37 @@ input[type="radio"] {
 .log-line-3 { font-size: 0.8rem; color: #888; margin-top: 6px; border-top: 1px solid #333; padding-top: 4px; }
 .empty-msg { text-align: center; color: #666; margin-top: 50px; }
 
+/* --- カレンダーの枠線を薄いグレーに調整 --- */
+:root {
+    /* 枠線の色を定義（必要に応じてここで一括管理） */
+    --calendar-border: #333333; 
+}
+
+/* カレンダー全体の枠 */
+#calendarDisplay {
+    border: 1px solid var(--calendar-border);
+}
+
+/* マス目（セル）の境界線 */
+.fc td, .fc th {
+    border: 1px solid var(--calendar-border) !important;
+}
+
+/* ヘッダー部分の境界線 */
+.fc-theme-standard td, .fc-theme-standard th {
+    border: 1px solid var(--calendar-border) !important;
+}
+
+/* スクロールエリアなどの境界線 */
+.fc-theme-standard .fc-scrollgrid {
+    border: 1px solid var(--calendar-border) !important;
+}
+
+/* 日付の数字の下の線など、細かいパーツの調整 */
+.fc-daygrid-day-top {
+    border-bottom: none; /* ここは線を消すとスッキリします */
+}
+
 /* カレンダー */
 #calendarDisplay { background: var(--card-bg); border-radius: 16px; overflow: hidden; padding: 10px; border: 1px solid var(--border-color); }
 .fc { font-size: 0.9rem; }
