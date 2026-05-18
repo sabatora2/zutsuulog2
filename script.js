@@ -6,7 +6,7 @@ const f = () => window.firebaseApp;
 
 // --- 1. 初期化処理 ---
 window.addEventListener('load', () => {
-    // ログイン状態監視
+    // ログイン状態監視 (既存のロジック)
     f().authFunc.onAuthStateChanged(f().auth, (user) => {
         const appElement = document.getElementById('app');
         const navElement = document.querySelector('.tab-bar');
@@ -31,15 +31,21 @@ window.addEventListener('load', () => {
         }
     });
 
-    // フォームパーツ初期化
-    flatpickr("#date", { locale: "ja", defaultDate: "today", dateFormat: "Y-m-d" });
+    // --- 日付・時刻入力の初期化（ジョグダイヤル最適化版） ---
+    flatpickr("#date", { 
+        locale: "ja", 
+        defaultDate: "today", 
+        dateFormat: "Y-m-d" 
+    });
+
     flatpickr(".time-picker", {
         enableTime: true,
         noCalendar: true,
         dateFormat: "H:i",
         time_24hr: true,
         minuteIncrement: 5,
-        disableMobile: "true" // スマホでもカスタムUIを使用
+        // disableMobileをfalseにすることで、スマホではOS標準の「ジョグダイヤルUI」を起動させる
+        disableMobile: false 
     });
 });
 
